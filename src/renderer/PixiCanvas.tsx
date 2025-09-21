@@ -118,13 +118,12 @@ export const PixiCanvas = () => {
       worldWidth: 2000,
       worldHeight: 2000,
       ticker: app.ticker,
-      // Pass the container element for event handling
+      events: app.renderer.events,
       passiveWheel: false,
-    } as any);
+    });
 
-    // Cast to any to avoid type conflicts
-    const viewportContainer = viewport as any;
-    app.stage.addChild(viewportContainer);
+    // Add viewport to stage
+    app.stage.addChild(viewport as any);
     viewportRef.current = viewport;
 
     // Enable viewport interactions
@@ -134,7 +133,7 @@ export const PixiCanvas = () => {
       .wheel()
       .decelerate();
 
-    // Update camera state on viewport change - using addEventListener for compatibility
+    // Update camera state on viewport change
     const handleViewportMove = () => {
       setCameraState({
         x: viewport.center.x,
@@ -144,7 +143,8 @@ export const PixiCanvas = () => {
     };
     
     // Add listener for viewport changes
-    (viewport as any).on('moved', handleViewportMove);
+    viewport.on('moved', handleViewportMove);
+    viewport.on('zoomed', handleViewportMove);
 
     // Generate and render tiles
     const tilesData = generateTiles();
