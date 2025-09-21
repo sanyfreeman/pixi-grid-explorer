@@ -1,3 +1,5 @@
+export type TileType = 'color' | 'video' | 'image' | 'audio';
+
 export interface Tile {
   id: string;
   x: number;
@@ -6,7 +8,9 @@ export interface Tile {
   height: number;
   color: number;
   label: string;
-  pixiGraphics?: any; // PIXI.Graphics reference
+  type: TileType;
+  mediaUrl?: string;
+  pixiContainer?: any; // PIXI.Container reference
 }
 
 export interface CameraState {

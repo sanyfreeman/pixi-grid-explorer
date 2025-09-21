@@ -3,55 +3,24 @@ import * as PIXI from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { useStore } from '@/state/store';
 import type { Tile } from '@/types';
+import { generateTiles } from './tileGenerator';
+import { 
+  createVideoTile, 
+  createImageTile, 
+  createAudioTile, 
+  createColorTile 
+} from './mediaRenderers';
 
 const GRID_COLS = 5;
 const GRID_ROWS = 4;
 const TILE_SIZE = 120;
 const TILE_GAP = 20;
 
-// Generate random colors for tiles
-const generateRandomColor = () => {
-  const colors = [
-    0x3b82f6, // blue
-    0x8b5cf6, // purple
-    0x06b6d4, // cyan
-    0x10b981, // emerald
-    0xf59e0b, // amber
-    0xef4444, // red
-    0xec4899, // pink
-    0x6366f1, // indigo
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-};
-
-// Generate tiles data
-const generateTiles = (): Tile[] => {
-  const tiles: Tile[] = [];
-  let id = 0;
-  
-  for (let row = 0; row < GRID_ROWS; row++) {
-    for (let col = 0; col < GRID_COLS; col++) {
-      tiles.push({
-        id: `tile-${id}`,
-        x: col * (TILE_SIZE + TILE_GAP),
-        y: row * (TILE_SIZE + TILE_GAP),
-        width: TILE_SIZE,
-        height: TILE_SIZE,
-        color: generateRandomColor(),
-        label: `Item ${id + 1}`,
-      });
-      id++;
-    }
-  }
-  
-  return tiles;
-};
-
 export const PixiCanvas = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const viewportRef = useRef<Viewport | null>(null);
-  const tilesGraphicsRef = useRef<Map<string, PIXI.Graphics>>(new Map());
+  const tilesContainersRef = useRef<Map<string, PIXI.Container>>(new Map());
   
   const { 
     selectedTileId, 
@@ -76,22 +45,19 @@ export const PixiCanvas = () => {
   }, [setSelectedTileId]);
 
   const handleTileHover = useCallback((tile: Tile, isHovering: boolean) => {
-    const graphics = tilesGraphicsRef.current.get(tile.id);
-    if (graphics) {
-      graphics.clear();
-      
-      // Draw tile background
-      graphics.beginFill(tile.color, 0.8);
-      graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
-      graphics.endFill();
-      
-      // Draw border (highlight on hover or selection)
-      const isSelected = selectedTileId === tile.id;
-      const borderColor = isSelected ? 0xa855f7 : (isHovering ? 0x3b82f6 : 0x475569);
-      const borderWidth = isSelected || isHovering ? 3 : 2;
-      
-      graphics.lineStyle(borderWidth, borderColor, 1);
-      graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
+    const container = tilesContainersRef.current.get(tile.id);
+    if (container) {
+      // Update border on hover/selection
+      const border = container.getChildByName('border') as PIXI.Graphics;
+      if (border) {
+        border.clear();
+        const isSelected = selectedTileId === tile.id;
+        const borderColor = isSelected ? 0xa855f7 : (isHovering ? 0x3b82f6 : 0x475569);
+        const borderWidth = isSelected || isHovering ? 3 : 2;
+        
+        border.lineStyle(borderWidth, borderColor, 1);
+        border.drawRoundedRect(0, 0, tile.width, tile.height, 8);
+      }
     }
   }, [selectedTileId]);
 
@@ -165,47 +131,48 @@ export const PixiCanvas = () => {
       tilesContainer.x = -gridWidth / 2;
       tilesContainer.y = -gridHeight / 2;
 
-      // Render tiles
-      tilesData.forEach((tile) => {
-        const graphics = new PIXI.Graphics();
-        graphics.x = tile.x;
-        graphics.y = tile.y;
+      // Render tiles based on their type
+      for (const tile of tilesData) {
+        let tileContainer: PIXI.Container;
         
-        // Initial draw
-        graphics.beginFill(tile.color, 0.8);
-        graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
-        graphics.endFill();
+        // Create tile based on type
+        switch (tile.type) {
+          case 'video':
+            tileContainer = await createVideoTile(tile);
+            break;
+          case 'image':
+            tileContainer = await createImageTile(tile);
+            break;
+          case 'audio':
+            tileContainer = createAudioTile(tile);
+            break;
+          case 'color':
+          default:
+            tileContainer = createColorTile(tile);
+            break;
+        }
         
-        // Border
-        graphics.lineStyle(2, 0x475569, 1);
-        graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
+        // Add border for hover/selection
+        const border = new PIXI.Graphics();
+        border.name = 'border';
+        border.lineStyle(2, 0x475569, 1);
+        border.drawRoundedRect(0, 0, tile.width, tile.height, 8);
+        tileContainer.addChild(border);
         
         // Make interactive
-        graphics.eventMode = 'static';
-        graphics.cursor = 'pointer';
-        
-        // Add text label
-        const text = new PIXI.Text(tile.label, {
-          fontFamily: 'Arial',
-          fontSize: 14,
-          fill: 0xffffff,
-          align: 'center',
-        });
-        text.anchor.set(0.5);
-        text.x = tile.width / 2;
-        text.y = tile.height / 2;
-        graphics.addChild(text);
+        tileContainer.eventMode = 'static';
+        tileContainer.cursor = 'pointer';
         
         // Store reference
-        tilesGraphicsRef.current.set(tile.id, graphics);
+        tilesContainersRef.current.set(tile.id, tileContainer);
         
         // Add event listeners
-        graphics.on('pointerdown', () => handleTileClick(tile));
-        graphics.on('pointerover', () => handleTileHover(tile, true));
-        graphics.on('pointerout', () => handleTileHover(tile, false));
+        tileContainer.on('pointerdown', () => handleTileClick(tile));
+        tileContainer.on('pointerover', () => handleTileHover(tile, true));
+        tileContainer.on('pointerout', () => handleTileHover(tile, false));
         
-        tilesContainer.addChild(graphics);
-      });
+        tilesContainer.addChild(tileContainer);
+      }
 
       // Handle window resize
       const handleResize = () => {
