@@ -98,134 +98,142 @@ export const PixiCanvas = () => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Initialize PIXI Application
-    const app = new PIXI.Application({
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,
-      backgroundColor: 0x0f1117,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
-
-    containerRef.current.appendChild(app.view as HTMLCanvasElement);
-    appRef.current = app;
-
-    // Create viewport for panning and zooming
-    const viewport = new Viewport({
-      screenWidth: app.screen.width,
-      screenHeight: app.screen.height,
-      worldWidth: 2000,
-      worldHeight: 2000,
-      ticker: app.ticker,
-      events: app.renderer.events,
-      passiveWheel: false,
-    });
-
-    // Add viewport to stage
-    app.stage.addChild(viewport as any);
-    viewportRef.current = viewport;
-
-    // Enable viewport interactions
-    viewport
-      .drag()
-      .pinch()
-      .wheel()
-      .decelerate();
-
-    // Update camera state on viewport change
-    const handleViewportMove = () => {
-      setCameraState({
-        x: viewport.center.x,
-        y: viewport.center.y,
-        scale: viewport.scaled,
+    const initPixi = async () => {
+      // Initialize PIXI Application with async init for v8
+      const app = new PIXI.Application();
+      
+      // Initialize the app with async method (required for PIXI v8)
+      await app.init({
+        width: containerRef.current!.clientWidth,
+        height: containerRef.current!.clientHeight,
+        backgroundColor: 0x0f1117,
+        antialias: true,
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
       });
-    };
-    
-    // Add listener for viewport changes
-    viewport.on('moved', handleViewportMove);
-    viewport.on('zoomed', handleViewportMove);
 
-    // Generate and render tiles
-    const tilesData = generateTiles();
-    setTiles(tilesData);
+      // Append canvas to container (PIXI v8 uses app.canvas)
+      containerRef.current!.appendChild(app.canvas);
+      appRef.current = app;
 
-    // Create container for all tiles
-    const tilesContainer = new PIXI.Container();
-    (viewport as any).addChild(tilesContainer);
-
-    // Center the tiles grid
-    const gridWidth = GRID_COLS * (TILE_SIZE + TILE_GAP) - TILE_GAP;
-    const gridHeight = GRID_ROWS * (TILE_SIZE + TILE_GAP) - TILE_GAP;
-    tilesContainer.x = -gridWidth / 2;
-    tilesContainer.y = -gridHeight / 2;
-
-    // Render tiles
-    tilesData.forEach((tile) => {
-      const graphics = new PIXI.Graphics();
-      graphics.x = tile.x;
-      graphics.y = tile.y;
-      
-      // Initial draw
-      graphics.beginFill(tile.color, 0.8);
-      graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
-      graphics.endFill();
-      
-      // Border
-      graphics.lineStyle(2, 0x475569, 1);
-      graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
-      
-      // Make interactive
-      graphics.eventMode = 'static';
-      graphics.cursor = 'pointer';
-      
-      // Add text label
-      const text = new PIXI.Text(tile.label, {
-        fontFamily: 'Arial',
-        fontSize: 14,
-        fill: 0xffffff,
-        align: 'center',
+      // Create viewport for panning and zooming
+      const viewport = new Viewport({
+        screenWidth: app.screen.width,
+        screenHeight: app.screen.height,
+        worldWidth: 2000,
+        worldHeight: 2000,
+        ticker: app.ticker,
+        events: app.renderer.events,
+        passiveWheel: false,
       });
-      text.anchor.set(0.5);
-      text.x = tile.width / 2;
-      text.y = tile.height / 2;
-      graphics.addChild(text);
-      
-      // Store reference
-      tilesGraphicsRef.current.set(tile.id, graphics);
-      
-      // Add event listeners
-      graphics.on('pointerdown', () => handleTileClick(tile));
-      graphics.on('pointerover', () => handleTileHover(tile, true));
-      graphics.on('pointerout', () => handleTileHover(tile, false));
-      
-      tilesContainer.addChild(graphics);
-    });
 
-    // Handle window resize
-    const handleResize = () => {
-      if (containerRef.current && app) {
-        app.renderer.resize(
-          containerRef.current.clientWidth,
-          containerRef.current.clientHeight
-        );
-        viewport.resize(
-          containerRef.current.clientWidth,
-          containerRef.current.clientHeight
-        );
-      }
+      // Add viewport to stage
+      app.stage.addChild(viewport as any);
+      viewportRef.current = viewport;
+
+      // Enable viewport interactions
+      viewport
+        .drag()
+        .pinch()
+        .wheel()
+        .decelerate();
+
+      // Update camera state on viewport change
+      const handleViewportMove = () => {
+        setCameraState({
+          x: viewport.center.x,
+          y: viewport.center.y,
+          scale: viewport.scaled,
+        });
+      };
+      
+      // Add listener for viewport changes
+      viewport.on('moved', handleViewportMove);
+      viewport.on('zoomed', handleViewportMove);
+
+      // Generate and render tiles
+      const tilesData = generateTiles();
+      setTiles(tilesData);
+
+      // Create container for all tiles
+      const tilesContainer = new PIXI.Container();
+      (viewport as any).addChild(tilesContainer);
+
+      // Center the tiles grid
+      const gridWidth = GRID_COLS * (TILE_SIZE + TILE_GAP) - TILE_GAP;
+      const gridHeight = GRID_ROWS * (TILE_SIZE + TILE_GAP) - TILE_GAP;
+      tilesContainer.x = -gridWidth / 2;
+      tilesContainer.y = -gridHeight / 2;
+
+      // Render tiles
+      tilesData.forEach((tile) => {
+        const graphics = new PIXI.Graphics();
+        graphics.x = tile.x;
+        graphics.y = tile.y;
+        
+        // Initial draw
+        graphics.beginFill(tile.color, 0.8);
+        graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
+        graphics.endFill();
+        
+        // Border
+        graphics.lineStyle(2, 0x475569, 1);
+        graphics.drawRoundedRect(0, 0, tile.width, tile.height, 8);
+        
+        // Make interactive
+        graphics.eventMode = 'static';
+        graphics.cursor = 'pointer';
+        
+        // Add text label
+        const text = new PIXI.Text(tile.label, {
+          fontFamily: 'Arial',
+          fontSize: 14,
+          fill: 0xffffff,
+          align: 'center',
+        });
+        text.anchor.set(0.5);
+        text.x = tile.width / 2;
+        text.y = tile.height / 2;
+        graphics.addChild(text);
+        
+        // Store reference
+        tilesGraphicsRef.current.set(tile.id, graphics);
+        
+        // Add event listeners
+        graphics.on('pointerdown', () => handleTileClick(tile));
+        graphics.on('pointerover', () => handleTileHover(tile, true));
+        graphics.on('pointerout', () => handleTileHover(tile, false));
+        
+        tilesContainer.addChild(graphics);
+      });
+
+      // Handle window resize
+      const handleResize = () => {
+        if (containerRef.current && app) {
+          app.renderer.resize(
+            containerRef.current.clientWidth,
+            containerRef.current.clientHeight
+          );
+          viewport.resize(
+            containerRef.current.clientWidth,
+            containerRef.current.clientHeight
+          );
+        }
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      // Cleanup
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        if (appRef.current) {
+          appRef.current.destroy(true, { children: true, texture: true });
+          appRef.current = null;
+        }
+      };
     };
 
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (appRef.current) {
-        appRef.current.destroy(true, { children: true, texture: true });
-        appRef.current = null;
-      }
-    };
+    initPixi();
   }, []);
 
   // Update tiles when selection changes
